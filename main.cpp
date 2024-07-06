@@ -9,7 +9,12 @@
 // If run without the "-save", "-load" or "-clear" switches, the contents of
 // RAM will be dumped to stdout
 //
+//-----------------------------------------------------------------------------
+//   Date    Vers  Who  What
+//-----------------------------------------------------------------------------
+// 05-Jul-24  1.1  DWW  First numbered version
 //=============================================================================
+#define REVISION "1.1"
 
 #include <unistd.h>
 #include <stdio.h>
@@ -64,10 +69,53 @@ int main(int argc, const char** argv)
 //=============================================================================
 void showHelp()
 {
+    printf("physram v%s\n", REVISION);
     printf("physram <address> [size] [-clear] [-save <filename>] [-load <filename>]\n");
     exit(1);
 }
 //=============================================================================
+
+
+//=============================================================================
+// to_u64() - Converts an ASCII string to a 64-bit unsigned int
+//=============================================================================
+uint64_t to_u64(const char* str)
+{
+    char token[100];
+
+    // Point to the output buffer
+    char *out=token;
+
+    // Skip over whitespace
+    while (*str == 32 || *str == 9) ++str;
+
+    // Loop through every character of the input string
+    while (true)
+    {
+        // Fetch the next character
+        int c = *str++;
+
+        // If this character is an underscore, skip it
+        if (c == '_') continue;
+
+        // If this character is the end of the token, break
+        if (c == 0  || c ==  '\n' || c == '\r' || c == 32 || c == 9) break;
+
+        // Output the character to the token buffer.
+        *out++ = c;
+
+        // Don't overflow our token buffer
+        if ((out - token) == (sizeof(token)-1)) break;
+    }
+
+    // Nul-terminate the buffer
+    *out = 0;
+
+    // And return it binary value
+    return strtoull(token, nullptr, 0);
+}
+//=============================================================================
+
 
 
 //=============================================================================
@@ -113,9 +161,9 @@ void parseCommandLine(const char** argv)
 
         // Store this parameter into either "address" or "data"
         if (++index == 1)
-            regionAddr = strtoull(token, 0, 0);
+            regionAddr = to_u64(token);
         else
-            regionSize = strtoull(token, 0, 0);
+            regionSize = to_u64(token);
     }
 
     // If the user failed to give us an address, that's fatal
