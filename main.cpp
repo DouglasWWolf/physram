@@ -4,10 +4,10 @@
 // Author: Doug Wolf
 //
 // To run this program, use this command line:
-//     sudo ./physram <address> [size] [-save <filename>] [-clear]
+//     sudo ./physram <address> [size] [-save <filename>] [-load <filename>] [-clear]
 //
-// If run without the "-save" or "-clear" switches, the contents of RAM will
-// be dumped to stdout
+// If run without the "-save", "-load" or "-clear" switches, the contents of
+// RAM will be dumped to stdout
 //
 //=============================================================================
 
@@ -19,6 +19,9 @@
 #include <cstring>
 #include <string>
 #include <cstdarg>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include "PhysMem.h"
 
 using namespace std;
@@ -26,7 +29,8 @@ using namespace std;
 uint64_t regionAddr;
 uint64_t regionSize = 0x100000;
 string   filename;
-bool     save = false;
+bool     save  = false;
+bool     load  = false;
 bool     clear = false;
 
 PhysMem RAM;
@@ -60,7 +64,7 @@ int main(int argc, const char** argv)
 //=============================================================================
 void showHelp()
 {
-    printf("physram <address> [size] [-clear] [-save <filename>]\n");
+    printf("physram <address> [size] [-clear] [-save <filename>] [-load <filename>]\n");
     exit(1);
 }
 //=============================================================================
@@ -85,14 +89,20 @@ void parseCommandLine(const char** argv)
         if (token == nullptr) break;
 
         // If it's the "-save" switch...
-        if (strcmp(token, "-save") == 0)
+        if (strcmp(token, "-save") == 0 && argv[i])
         {
             save = true;
-            token = argv[i++];
-            if (token == nullptr) showHelp();
-            filename = token;
+            filename = argv[i++];
             continue;
         }
+
+        if (strcmp(token, "-load") == 0 && argv[i])
+        {
+            load = true;
+            filename = argv[i++];
+            continue;
+        }
+
 
         // If it's the "-clear" switch...
         if (strcmp(token, "-clear") == 0)
@@ -115,6 +125,88 @@ void parseCommandLine(const char** argv)
 
 
 
+//=============================================================================
+// perform_save() - Saves the memory region to a file
+//=============================================================================
+void perform_save(uint8_t* ptr)
+{
+    FILE* ofile = fopen(filename.c_str(), "w");
+    if (ofile == nullptr)
+    {
+        fprintf(stderr, "Can't create %s\n", filename.c_str());
+        exit(1);
+    } 
+    fwrite(ptr, 1, regionSize, ofile);
+    fclose(ofile);
+    exit(1);       
+}
+//=============================================================================
+
+
+//=============================================================================
+// perform_load() - Loads a file into the memory region
+//=============================================================================
+void perform_load(uint64_t file_size, uint8_t* dest_ptr)
+{
+    const uint32_t BLOCK_SIZE = 0x100000;
+    uint64_t bytes_loaded = 0;
+
+    // Get a char* to the filename
+    const char* fn = filename.c_str();     
+
+    FILE* ifile = fopen(fn, "r");
+    if (ifile == nullptr)
+    {
+        fprintf(stderr, "physram: can't open %s\n", fn);
+        exit(1);
+    }
+
+    // Load the file into RAM
+    while (bytes_loaded < file_size)
+    {
+        int64_t this_block_size = fread(dest_ptr, 1, BLOCK_SIZE, ifile);
+        if (this_block_size < 0)
+        {
+            fprintf(stdout, "physram: failure while reading %s\n", fn);
+            exit(1);            
+        }
+        dest_ptr     += this_block_size;
+        bytes_loaded += this_block_size;
+    }
+
+    // Close the file, and exit, we're done
+    fclose(ifile);
+    exit(0);
+}
+//=============================================================================
+
+
+
+//=============================================================================
+// get_file_size() - Returns the size of the input file
+//=============================================================================
+uint64_t get_file_size()
+{
+    struct stat64 ss;
+
+    // Get a char* to the filename
+    const char* fn = filename.c_str();     
+
+    // Stat the file, and complain if we can't
+    if (stat64(fn, &ss) < 0)
+
+    {
+        fprintf(stderr, "physram: can't stat %s\n", fn);
+        exit(1);
+    }   
+
+    // Fetch the file-size in bytes
+    uint64_t file_size = ss.st_size;
+
+    // And hand the file-size to the caller
+    return file_size;
+}
+//=============================================================================
 
 
 
@@ -123,6 +215,26 @@ void parseCommandLine(const char** argv)
 //=============================================================================
 void execute()
 {
+    uint64_t file_size = 0;
+
+    // If we're going to ber loading a file, make sure it will fit
+    if (load)
+    {
+        file_size = get_file_size();
+        if (file_size > regionSize)
+        {
+            fprintf
+            (
+                stderr,
+                "physram: file size of %lu bytes too big to fit "
+                "into region of %lu bytes\n",
+                file_size,
+                regionSize
+            );
+            exit(1);
+        }
+    }
+
     // Map the contiguous buffer into user-space
     RAM.map(regionAddr, regionSize);
 
@@ -137,18 +249,10 @@ void execute()
     }
     
     // If we're supposed to save the RAM into a file...
-    if (save)
-    {
-        FILE* ofile = fopen(filename.c_str(), "w");
-        if (ofile == nullptr)
-        {
-            fprintf(stderr, "Can't create %s\n", filename.c_str());
-            exit(1);
-        } 
-        fwrite(ptr, 1, regionSize, ofile);
-        fclose(ofile);
-        exit(1);       
-    }
+    if (save) perform_save(ptr);
+
+    // If we're supposed to load data into RAM from a file...
+    if (load) perform_load(file_size, ptr);
 
     // Otherwise, just copy the RAM buffer to stdout.
     while (regionSize--)
