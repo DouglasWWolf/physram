@@ -13,8 +13,9 @@
 //   Date    Vers  Who  What
 //-----------------------------------------------------------------------------
 // 05-Jul-24  1.1  DWW  First numbered version
+// 13-Jul-24  1.2  DWW  Added optional "value" on the "-clear" switch
 //=============================================================================
-#define REVISION "1.1"
+#define REVISION "1.2"
 
 #include <unistd.h>
 #include <stdio.h>
@@ -37,6 +38,7 @@ string   filename;
 bool     save  = false;
 bool     load  = false;
 bool     clear = false;
+int      clearValue = 0;
 
 PhysMem RAM;
 
@@ -70,7 +72,7 @@ int main(int argc, const char** argv)
 void showHelp()
 {
     printf("physram v%s\n", REVISION);
-    printf("physram <address> [size] [-clear] [-save <filename>] [-load <filename>]\n");
+    printf("physram <address> [size] [-clear [value]] [-save <filename>] [-load <filename>]\n");
     exit(1);
 }
 //=============================================================================
@@ -156,6 +158,10 @@ void parseCommandLine(const char** argv)
         if (strcmp(token, "-clear") == 0)
         {
             clear = true;
+            if (argv[i] && argv[i][0] >= '0' && argv[i][0] <= '9')
+            {
+                clearValue = (uint8_t)to_u64(argv[i++]);
+            }
             continue;
         }
 
@@ -292,7 +298,7 @@ void execute()
     // If we're supposed to clear the RAM, make it so
     if (clear)
     {
-        memset(ptr, 0, regionSize);
+        memset(ptr, clearValue, regionSize);
         exit(0);
     }
     
