@@ -4,18 +4,24 @@
 // Author: Doug Wolf
 //
 // To run this program, use this command line:
-//     sudo ./physram <address> [size] [-save <filename>] [-load <filename>] [-clear]
+//     sudo ./physram <address> [size]
+//           [-save <filename>]
+//           [-load <filename>]
+//           [-pcap <filename>]
+//           [-packet <size>]
+//           [-clear [value]]
 //
-// If run without the "-save", "-load" or "-clear" switches, the contents of
-// RAM will be dumped to stdout
+// If run without the "-save", "-pcap", "-load" "-clear" switches, the contents 
+// of RAM will be dumped to stdout
 //
 //-----------------------------------------------------------------------------
 //   Date    Vers  Who  What
 //-----------------------------------------------------------------------------
 // 05-Jul-24  1.1  DWW  First numbered version
 // 13-Jul-24  1.2  DWW  Added optional "value" on the "-clear" switch
+// 30-Sep-25  1.3  DWW  Added "-pcap" and "-packet" options
 //=============================================================================
-#define REVISION "1.2"
+#define REVISION "1.3"
 
 #include <unistd.h>
 #include <stdio.h>
@@ -29,16 +35,20 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "PhysMem.h"
+#include "pcap.h"
 
 using namespace std;
 
 uint64_t regionAddr;
 uint64_t regionSize = 0x100000;
+uint64_t packetSize = 4096;
 string   filename;
 bool     save  = false;
 bool     load  = false;
+bool     pcap  = false;
 bool     clear = false;
 int      clearValue = 0;
+
 
 PhysMem RAM;
 
@@ -72,7 +82,12 @@ int main(int argc, const char** argv)
 void showHelp()
 {
     printf("physram v%s\n", REVISION);
-    printf("physram <address> [size] [-clear [value]] [-save <filename>] [-load <filename>]\n");
+    printf("physram <address> [size]\n");
+    printf("        [-clear [value]]\n");
+    printf("        [-save <filename>]\n");
+    printf("        [-load <filename>]\n");
+    printf("        [-pcap <filename>]\n");
+    printf("        [-packet <size>]\n");
     exit(1);
 }
 //=============================================================================
@@ -128,7 +143,7 @@ uint64_t to_u64(const char* str)
 //=============================================================================
 void parseCommandLine(const char** argv)
 {
-    int i=1, index = 0;
+    int i=1, index = 0, value = 0;
 
     while (true)
     {
@@ -138,24 +153,42 @@ void parseCommandLine(const char** argv)
         // If we're out of tokens, we're done
         if (token == nullptr) break;
 
+        // Turn the token into std::string
+        string option = token;        
+
         // If it's the "-save" switch...
-        if (strcmp(token, "-save") == 0 && argv[i])
+        if (option == "-save" && argv[i])
         {
             save = true;
             filename = argv[i++];
             continue;
         }
 
-        if (strcmp(token, "-load") == 0 && argv[i])
+        if (option == "-load" && argv[i])
         {
             load = true;
             filename = argv[i++];
             continue;
         }
 
+        if (option == "-pcap" && argv[i])
+        {
+            pcap = true;
+            filename = argv[i++];
+            continue;
+        }
+
+
+        if (option == "-packet" && argv[i])
+        {
+            value = to_u64(argv[i++]);
+            if (value >= 1 && value <= 9600) packetSize = value;
+            continue;
+        }
+
 
         // If it's the "-clear" switch...
-        if (strcmp(token, "-clear") == 0)
+        if (option == "-clear")
         {
             clear = true;
             if (argv[i] && argv[i][0] >= '0' && argv[i][0] <= '9')
@@ -180,7 +213,7 @@ void parseCommandLine(const char** argv)
 
 
 //=============================================================================
-// perform_save() - Saves the memory region to a file
+// perform_save() - Saves the memory region to a binary file
 //=============================================================================
 void perform_save(uint8_t* ptr)
 {
@@ -195,6 +228,25 @@ void perform_save(uint8_t* ptr)
     exit(1);       
 }
 //=============================================================================
+
+
+//=============================================================================
+// perform_pcap() - Saves the memory region to a pcap file
+//=============================================================================
+void perform_pcap(uint8_t* ptr)
+{
+    FILE* ofile = fopen(filename.c_str(), "w");
+    if (ofile == nullptr)
+    {
+        fprintf(stderr, "Can't create %s\n", filename.c_str());
+        exit(1);
+    } 
+    pcap_dump(ptr, regionSize, ofile, packetSize);
+    fclose(ofile);
+    exit(1);       
+}
+//=============================================================================
+
 
 
 //=============================================================================
@@ -305,6 +357,9 @@ void execute()
     // If we're supposed to save the RAM into a file...
     if (save) perform_save(ptr);
 
+    // If we're suppoed to save the RAM as a PCAP file...
+    if (pcap) perform_pcap(ptr);
+
     // If we're supposed to load data into RAM from a file...
     if (load) perform_load(file_size, ptr);
 
@@ -315,7 +370,4 @@ void execute()
     }
 }
 //=============================================================================
-
-
-
 
