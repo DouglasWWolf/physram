@@ -5,7 +5,6 @@
 //
 // To run this program, use this command line:
 //     sudo ./physram <address> [size]
-//           [-pmem <base_addr>]
 //           [-save <filename>]
 //           [-load <filename>]
 //           [-pcap <filename>]
@@ -21,7 +20,7 @@
 // 05-Jul-24  1.1  DWW  First numbered version
 // 13-Jul-24  1.2  DWW  Added optional "value" on the "-clear" switch
 // 30-Sep-25  1.3  DWW  Added "-pcap" and "-packet" options
-// 14-Jul-26  1.4  DWW  Added the "-pmem" option
+// 14-Jul-26  1.4  DWW  Added support for /dev/pmem0
 //=============================================================================
 #define REVISION "1.4"
 
@@ -49,8 +48,6 @@ bool     save  = false;
 bool     load  = false;
 bool     pcap  = false;
 bool     clear = false;
-bool     pmem  = false;
-uint64_t pmem_base  = 0;
 int      clearValue = 0;
 
 
@@ -87,7 +84,6 @@ void showHelp()
 {
     printf("physram v%s\n", REVISION);
     printf("physram <address> [size]\n");
-    printf("        [-pmem <base_addr>]\n");
     printf("        [-clear [value]]\n");
     printf("        [-save <filename>]\n");
     printf("        [-load <filename>]\n");
@@ -161,20 +157,6 @@ void parseCommandLine(const char** argv)
         // Turn the token into std::string
         string option = token;        
 
-        // If it's the "-pmem" switch
-        if (option == "-pmem" && argv[i])
-        {
-            pmem = true;
-            c = argv[i][0];
-            if (c < '0' || c > '9')
-            {
-                fprintf(stderr, "invalid argument to -pmem\n");
-                exit(1);
-            }
-            pmem_base = to_u64(argv[i++]);
-            continue;
-        }
-
         // If it's the "-save" switch...
         if (option == "-save" && argv[i])
         {
@@ -225,7 +207,7 @@ void parseCommandLine(const char** argv)
     }
 
     // If the user failed to give us an address, that's fatal
-    if (regionAddr == 0 && !pmem) showHelp();
+    if (regionAddr == 0) showHelp();
 }
 //=============================================================================
 
@@ -341,11 +323,7 @@ uint64_t get_file_size()
 void execute()
 {
     uint64_t file_size = 0;
-
-    // If we're addressing memory via /dev/pmem0, make "regionAddr"
-    // an offset from the /dev/pmem0 base address
-    if (pmem) regionAddr = regionAddr - pmem_base;
-
+    
     // If we're going to ber loading a file, make sure it will fit
     if (load)
     {
@@ -365,7 +343,7 @@ void execute()
     }
 
     // Map the contiguous buffer into user-space
-    RAM.map(regionAddr, regionSize, pmem);
+    RAM.map(regionAddr, regionSize);
 
     // Fetch a pointer to the first byte of the buffer
     uint8_t* ptr = RAM.bptr();
