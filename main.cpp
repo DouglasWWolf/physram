@@ -144,7 +144,6 @@ uint64_t to_u64(const char* str)
 void parseCommandLine(const char** argv)
 {
     int i=1, index = 0, value = 0;
-    int c;
 
     while (true)
     {
