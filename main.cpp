@@ -5,6 +5,7 @@
 //
 // To run this program, use this command line:
 //     sudo ./physram <address> [size]
+//           [-pmem <base_addr>]
 //           [-save <filename>]
 //           [-load <filename>]
 //           [-pcap <filename>]
@@ -49,6 +50,7 @@ bool     load  = false;
 bool     pcap  = false;
 bool     clear = false;
 bool     pmem  = false;
+uint64_t pmem_base  = 0;
 int      clearValue = 0;
 
 
@@ -85,7 +87,7 @@ void showHelp()
 {
     printf("physram v%s\n", REVISION);
     printf("physram <address> [size]\n");
-    printf("        [-pmem]\n");
+    printf("        [-pmem <base_addr>]\n");
     printf("        [-clear [value]]\n");
     printf("        [-save <filename>]\n");
     printf("        [-load <filename>]\n");
@@ -146,6 +148,7 @@ uint64_t to_u64(const char* str)
 void parseCommandLine(const char** argv)
 {
     int i=1, index = 0, value = 0;
+    int c;
 
     while (true)
     {
@@ -159,9 +162,16 @@ void parseCommandLine(const char** argv)
         string option = token;        
 
         // If it's the "-pmem" switch
-        if (option == "-pmem")
+        if (option == "-pmem" && argv[i])
         {
             pmem = true;
+            c = argv[i][0];
+            if (c < '0' || c > '9')
+            {
+                fprintf(stderr, "invalid argument to -pmem\n");
+                exit(1);
+            }
+            pmem_base = to_u64(argv[i++]);
             continue;
         }
 
@@ -331,6 +341,10 @@ uint64_t get_file_size()
 void execute()
 {
     uint64_t file_size = 0;
+
+    // If we're addressing memory via /dev/pmem0, make "regionAddr"
+    // an offset from the /dev/pmem0 base address
+    if (pmem) regionAddr = regionAddr - pmem_base;
 
     // If we're going to ber loading a file, make sure it will fit
     if (load)

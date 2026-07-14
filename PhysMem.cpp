@@ -1,5 +1,5 @@
 //=================================================================================================
-// PciDevice.cpp - Implements a generic class for mapping PCIe devices into user-space
+// PhysMem - A class for mapping physical RAM addresses into userspace
 //=================================================================================================
 #include <unistd.h>
 #include <stdio.h>
