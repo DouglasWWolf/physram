@@ -20,8 +20,9 @@
 // 05-Jul-24  1.1  DWW  First numbered version
 // 13-Jul-24  1.2  DWW  Added optional "value" on the "-clear" switch
 // 30-Sep-25  1.3  DWW  Added "-pcap" and "-packet" options
+// 14-Jul-26  1.4  DWW  Now trying /dev/pmem0 prior to trying /dev/mem
 //=============================================================================
-#define REVISION "1.3"
+#define REVISION "1.4"
 
 #include <unistd.h>
 #include <stdio.h>
