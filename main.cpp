@@ -20,7 +20,7 @@
 // 05-Jul-24  1.1  DWW  First numbered version
 // 13-Jul-24  1.2  DWW  Added optional "value" on the "-clear" switch
 // 30-Sep-25  1.3  DWW  Added "-pcap" and "-packet" options
-// 14-Jul-26  1.4  DWW  Now trying /dev/pmem0 prior to trying /dev/mem
+// 14-Jul-26  1.4  DWW  Added the "-pmem" option
 //=============================================================================
 #define REVISION "1.4"
 
@@ -48,6 +48,7 @@ bool     save  = false;
 bool     load  = false;
 bool     pcap  = false;
 bool     clear = false;
+bool     pmem  = false;
 int      clearValue = 0;
 
 
@@ -84,6 +85,7 @@ void showHelp()
 {
     printf("physram v%s\n", REVISION);
     printf("physram <address> [size]\n");
+    printf("        [-pmem]\n");
     printf("        [-clear [value]]\n");
     printf("        [-save <filename>]\n");
     printf("        [-load <filename>]\n");
@@ -135,7 +137,6 @@ uint64_t to_u64(const char* str)
 //=============================================================================
 
 
-
 //=============================================================================
 // parseCommandLine() - Parses the command line parameters
 //
@@ -156,6 +157,13 @@ void parseCommandLine(const char** argv)
 
         // Turn the token into std::string
         string option = token;        
+
+        // If it's the "-pmem" switch
+        if (option == "-pmem")
+        {
+            pmem = true;
+            continue;
+        }
 
         // If it's the "-save" switch...
         if (option == "-save" && argv[i])
@@ -207,7 +215,7 @@ void parseCommandLine(const char** argv)
     }
 
     // If the user failed to give us an address, that's fatal
-    if (regionAddr == 0) showHelp();
+    if (regionAddr == 0 && !pmem) showHelp();
 }
 //=============================================================================
 
@@ -343,7 +351,7 @@ void execute()
     }
 
     // Map the contiguous buffer into user-space
-    RAM.map(regionAddr, regionSize);
+    RAM.map(regionAddr, regionSize, pmem);
 
     // Fetch a pointer to the first byte of the buffer
     uint8_t* ptr = RAM.bptr();
